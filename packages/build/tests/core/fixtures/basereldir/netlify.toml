@@ -1,0 +1,4 @@
+[build]
+base = "base"
+command = "echo command"
+publish = "/"

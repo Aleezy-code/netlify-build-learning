@@ -1,0 +1,14 @@
+[[plugins]]
+package = "./one.js"
+
+[[plugins]]
+package = "./two.js"
+
+[[plugins]]
+package = "./three.js"
+
+[[plugins]]
+package = "./four.js"
+
+[[plugins]]
+package = "./five.js"

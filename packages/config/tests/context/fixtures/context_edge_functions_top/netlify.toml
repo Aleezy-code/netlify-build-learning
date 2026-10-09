@@ -1,0 +1,7 @@
+[[edge_functions]]
+function = "log"
+path = "/src"
+
+[[context.production.edge_functions]]
+function = "logTest"
+path = "/srcTest"

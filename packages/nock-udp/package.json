@@ -1,0 +1,37 @@
+{
+  "name": "@netlify/nock-udp",
+  "version": "6.1.0",
+  "description": "Here to mock your UDP packets",
+  "exports": "./lib/main.js",
+  "main": "./lib/main.js",
+  "types": "./lib/main.d.ts",
+  "type": "module",
+  "files": [
+    "lib/**/*"
+  ],
+  "scripts": {
+    "prebuild": "rm -rf lib",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:dev": "vitest",
+    "test:ci": "vitest run --reporter=default"
+  },
+  "keywords": [],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/netlify/build.git",
+    "directory": "packages/nock-udp"
+  },
+  "bugs": {
+    "url": "https://github.com/netlify/build/issues"
+  },
+  "author": "Netlify Inc.",
+  "devDependencies": {
+    "@types/node": "^22.12.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "implicitDependencies": {
+    ".c8rc.json": "*",
+    "ava.base.js": ["@netlify/build", "@netlify/config", "@netlify/api"],
+    "package.json": "*",
+    "package-lock.json": "*",
+    "nx.json": "*",
+    "tsconfig.base.json": "*"
+  },
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["{projectRoot}/lib"],
+      "cache": true
+    },
+    "test:ci": {
+      "dependsOn": ["build"],
+      "cache": true
+    },
+    "test": {
+      "cache": true
+    }
+  }
+}

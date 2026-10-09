@@ -1,0 +1,259 @@
+import { existsSync } from 'fs'
+import { copyFile, readFile, rm } from 'fs/promises'
+import { normalize, resolve } from 'path'
+import { fileURLToPath } from 'url'
+
+import { expect, test, vi } from 'vitest'
+
+import { add, list, listAll } from '../src/main.js'
+
+import { getDist, createDist } from './helpers/main.js'
+import { type ListedFunction } from '@netlify/zip-it-and-ship-it'
+
+const FIXTURES_DIR = fileURLToPath(new URL('fixtures', import.meta.url))
+
+test('Should copy a source file to a dist directory', async () => {
+  const dist = getDist()
+  try {
+    await add(`${FIXTURES_DIR}/file/test.mjs`, dist)
+    expect(existsSync(`${dist}/test.mjs`)).toBe(true)
+  } finally {
+    await rm(dist, { force: true, recursive: true })
+  }
+})
+
+test('Should copy a source directory to a dist directory', async () => {
+  const dist = getDist()
+  try {
+    await add(`${FIXTURES_DIR}/directory/test`, dist)
+    expect(existsSync(`${dist}/test/index.js`)).toBe(true)
+  } finally {
+    await rm(dist, { force: true, recursive: true })
+  }
+})
+
+test('Should throw when source is undefined', async () => {
+  const dist = getDist()
+  try {
+    await expect(() => add(undefined, dist)).rejects.toThrow()
+  } finally {
+    await rm(dist, { force: true, recursive: true })
+  }
+})
+
+test('Should throw when source is empty array', async () => {
+  const dist = getDist()
+  try {
+    await expect(() => add([] as any, dist)).rejects.toThrow()
+  } finally {
+    await rm(dist, { force: true, recursive: true })
+  }
+})
+
+test('Should throw when source points to non-existing file', async () => {
+  const dist = getDist()
+  try {
+    await expect(() => add(`${FIXTURES_DIR}/file/doesNotExist.js`, dist)).rejects.toThrow()
+  } finally {
+    await rm(dist, { force: true, recursive: true })
+  }
+})
+
+test('Should throw when dist is undefined', async () => {
+  await expect(() => add(`${FIXTURES_DIR}/file/test.mjs`)).rejects.toThrow()
+})
+
+test('Should copy a source file even if dist directory already exists', async () => {
+  const dist = await createDist()
+  try {
+    await add(`${FIXTURES_DIR}/file/test.mjs`, dist)
+    expect(existsSync(`${dist}/test.mjs`)).toBe(true)
+  } finally {
+    await rm(dist, { force: true, recursive: true })
+  }
+})
+
+test('Should overwrite dist file if it already exists', async () => {
+  const dist = getDist()
+  const fixtureDir = `${FIXTURES_DIR}/file`
+  const testModule = `${dist}/test.mjs`
+
+  await copyFile(`${fixtureDir}/test.mjs`, `${fixtureDir}/test.mjs.backup`)
+
+  try {
+    await add(`${fixtureDir}/test.mjs`, dist)
+
+    const file1 = await readFile(testModule, 'utf8')
+
+    await copyFile(`${fixtureDir}/test_2.mjs`, `${fixtureDir}/test.mjs`)
+    await add(`${fixtureDir}/test.mjs`, dist)
+
+    const file2 = await readFile(testModule, 'utf8')
+
+    expect(file1).toContain('one')
+    expect(file2).toContain('two')
+  } finally {
+    await copyFile(`${fixtureDir}/test.mjs.backup`, `${fixtureDir}/test.mjs`)
+    await rm(`${fixtureDir}/test.mjs.backup`, { force: true })
+    await rm(dist, { force: true, recursive: true })
+  }
+})
+
+test('Should allow "fail" option to customize failures', async () => {
+  const fail = vi.fn() as any
+  await add(undefined, undefined, { fail })
+  expect(fail).toHaveBeenCalledExactlyOnceWith('No function source directory was specified')
+})
+
+// Sort by `mainFile`, then `extension`
+const sortFunctions = function (functions: ListedFunction[]) {
+  return [...functions].sort((a, b) => a.mainFile.localeCompare(b.mainFile) || a.extension.localeCompare(b.extension))
+}
+
+const normalizeFiles = function (
+  fixtureDir,
+  { name, mainFile, runtime, extension, srcDir, srcFile, srcPath, schedule },
+) {
+  const mainFileA = normalize(`${fixtureDir}/${mainFile}`)
+  const srcFileA = srcFile === undefined ? {} : { srcFile: normalize(`${fixtureDir}/${srcFile}`) }
+  const srcDirA = srcDir ? { srcDir: resolve(fixtureDir, srcDir) } : {}
+  const srcPathA = srcPath ? { srcPath: resolve(fixtureDir, srcPath) } : {}
+  return { name, mainFile: mainFileA, runtime, extension, schedule, ...srcFileA, ...srcDirA, ...srcPathA }
+}
+
+test('Can list function main files with list()', async () => {
+  const fixtureDir = `${FIXTURES_DIR}/list`
+  const functions = await list(fixtureDir)
+  expect(sortFunctions(functions)).toEqual(
+    [
+      {
+        name: 'four',
+        mainFile: 'four.js/four.js.js',
+        runtime: 'js',
+        extension: '.js',
+        srcDir: 'four.js',
+        srcPath: 'four.js',
+      },
+      {
+        name: 'one',
+        mainFile: 'one/index.js',
+        runtime: 'js',
+        extension: '.js',
+        srcDir: 'one',
+        srcPath: 'one',
+      },
+      { name: 'test', mainFile: 'test', runtime: 'go', extension: '', srcDir: '.', srcPath: 'test' },
+      { name: 'test', mainFile: 'test.js', runtime: 'js', extension: '.js', srcDir: '.', srcPath: 'test.js' },
+      { name: 'test', mainFile: 'test.zip', runtime: 'js', extension: '.zip', srcDir: '.', srcPath: 'test.zip' },
+      { name: 'two', mainFile: 'two/two.js', runtime: 'js', extension: '.js', srcDir: 'two', srcPath: 'two' },
+    ].map(normalizeFiles.bind(null, fixtureDir)),
+  )
+})
+
+test('Can list all function files with listAll()', async () => {
+  const fixtureDir = `${FIXTURES_DIR}/list`
+  const functions = await listAll(fixtureDir)
+  expect(sortFunctions(functions)).toEqual(
+    [
+      {
+        name: 'four',
+        mainFile: 'four.js/four.js.js',
+        runtime: 'js',
+        extension: '.js',
+        srcFile: 'four.js/four.js.js',
+        srcDir: 'four.js',
+        srcPath: 'four.js',
+      },
+      {
+        name: 'four',
+        mainFile: 'four.js/four.js.js',
+        runtime: 'js',
+        extension: '.json',
+        srcFile: '../../../package.json',
+        srcPath: 'four.js',
+        srcDir: 'four.js',
+      },
+      {
+        name: 'one',
+        mainFile: 'one/index.js',
+        runtime: 'js',
+        extension: '.js',
+        srcFile: 'one/index.js',
+        srcPath: 'one',
+        srcDir: 'one',
+      },
+      {
+        name: 'one',
+        mainFile: 'one/index.js',
+        runtime: 'js',
+        extension: '.json',
+        srcFile: '../../../package.json',
+        srcPath: 'one',
+        srcDir: 'one',
+      },
+      {
+        name: 'test',
+        mainFile: 'test',
+        runtime: 'go',
+        extension: '',
+        srcFile: 'test',
+        srcPath: 'test',
+        srcDir: '.',
+      },
+      {
+        name: 'test',
+        mainFile: 'test.js',
+        runtime: 'js',
+        extension: '.js',
+        srcFile: 'test.js',
+        srcPath: 'test.js',
+        srcDir: '.',
+      },
+      {
+        name: 'test',
+        mainFile: 'test.js',
+        runtime: 'js',
+        extension: '.json',
+        srcFile: '../../../package.json',
+        srcPath: 'test.js',
+        srcDir: '.',
+      },
+      {
+        name: 'test',
+        mainFile: 'test.zip',
+        runtime: 'js',
+        extension: '.zip',
+        srcFile: 'test.zip',
+        srcPath: 'test.zip',
+        srcDir: '.',
+      },
+      {
+        name: 'two',
+        mainFile: 'two/two.js',
+        runtime: 'js',
+        extension: '.js',
+        srcFile: 'two/two.js',
+        srcPath: 'two',
+        srcDir: 'two',
+      },
+      {
+        name: 'two',
+        mainFile: 'two/two.js',
+        runtime: 'js',
+        extension: '.js',
+        srcFile: 'two/three.js',
+        srcPath: 'two',
+        srcDir: 'two',
+      },
+      {
+        name: 'two',
+        mainFile: 'two/two.js',
+        runtime: 'js',
+        extension: '.json',
+        srcFile: '../../../package.json',
+        srcPath: 'two',
+        srcDir: 'two',
+      },
+    ].map(normalizeFiles.bind(null, fixtureDir)),
+  )
+})

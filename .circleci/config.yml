@@ -1,0 +1,107 @@
+version: 2.1
+
+orbs:
+  e2e: netlify/e2e@1
+
+workflows:
+  # Workflow responsible for correctly updating the root lockfile for the release-please PR
+  # See: https://github.com/googleapis/release-please/issues/1101
+  release-pull-request:
+    jobs:
+      - update-lockfile:
+          context: [shared-secrets]
+          filters:
+            branches:
+              only: [release-please--branches--main]
+
+  'Test & Check 🕵️‍♀️':
+    jobs:
+      - formatting
+      - e2e/test:
+          context: [shared-secrets, clone-repo, netlify-e2e]
+          pre-steps:
+            # Forked-PR builds don't receive contexts, so the orb fails on the missing CIRCLECI_TOKEN
+            - run:
+                name: Skip on forked PRs
+                command: |
+                  if [ -n "$CIRCLE_PR_NUMBER" ]; then
+                    echo "Skipping e2e — forked PRs don't get CircleCI contexts/secrets."
+                    circleci-agent step halt
+                  fi
+          config_yml: |
+            links:
+              - repo: netlify/build
+                branch: << pipeline.git.branch >>
+                packages:
+                  '@netlify/config': packages/config
+                  '@netlify/build': packages/build
+                  '@netlify/build-info': packages/build-info
+                installCommands:
+                  - npm run build
+
+executors:
+  node:
+    docker:
+      - image: cimg/node:24.17.0
+  windows:
+    machine:
+      image: windows-server-2019-vs2019:stable
+    resource_class: windows.xlarge
+    shell: powershell.exe -ExecutionPolicy Bypass
+  linux:
+    machine:
+      image: ubuntu-2004:2024.04.4
+    resource_class: large
+  macos:
+    resource_class: macos.x86.medium.gen2 # new generation resources
+    macos:
+      xcode: 13.0.0
+
+commands:
+  npm-install-deps:
+    parameters:
+      command:
+        description: The install command that is used
+        type: string
+        default: npm ci
+    steps:
+      - restore_cache:
+          keys:
+            - npm-{{ arch }}-v1-{{ checksum "package-lock.json" }}
+            - npm-{{ arch }}-v1
+      - run: curl -fsSL https://deno.land/install.sh | sh -s -- v1.42.3
+      - run: << parameters.command >>
+      - save_cache:
+          key: npm-{{ arch }}-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+
+jobs:
+  update-lockfile:
+    description: Update lockfile in a release please PR
+    executor: node
+    steps:
+      - checkout
+      - run: npm install
+      - run:
+          name: Commit and push lockfile
+          command: |
+            git remote remove origin
+            git remote add origin "https://${GITHUB_RELEASES_TOKEN}@github.com/netlify/build.git"
+            git config  user.email "33464286+netlify-jenkins@users.noreply.github.com"
+            git config  user.name "netlify-jenkins"
+            git add package-lock.json && \
+            git commit -m "chore: update lockfile" || true && \
+            git push --set-upstream origin release-please--branches--main
+  formatting:
+    description: Checks if the codebase satisfies wit the lint and style rules
+    executor: node
+    steps:
+      - checkout
+      - npm-install-deps
+      # This is necessary to work around platform-specific optional dependencies bug
+      # (https://github.com/npm/cli/issues/4828).
+      - run: npm i -D @oxfmt/binding-linux-x64-gnu
+      - run: npm run format:ci
+      - run: npm run build
+      - run: npm run lint:ci

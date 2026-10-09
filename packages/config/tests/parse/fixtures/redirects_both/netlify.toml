@@ -1,0 +1,10 @@
+[build]
+publish = "publish"
+
+[[redirects]]
+from = "/from"
+to = "/to"
+
+[[redirects]]
+from = "/from"
+to = "/to_config"

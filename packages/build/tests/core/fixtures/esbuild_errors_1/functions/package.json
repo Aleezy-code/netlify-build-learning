@@ -1,0 +1,8 @@
+{
+  "name": "local-node-module",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "test": "1.0.0"
+  }
+}

@@ -1,0 +1,6 @@
+[build]
+base = "base"
+publish = "/"
+
+[[plugins]]
+package = "../plugin"

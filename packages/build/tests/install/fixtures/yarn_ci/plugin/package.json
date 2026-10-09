@@ -1,0 +1,11 @@
+{
+  "name": "plugin_deps_plugin_yarn",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "test",
+  "license": "MIT",
+  "repository": "test",
+  "dependencies": {
+    "math-avg": "^1.0.0"
+  }
+}
